@@ -5,7 +5,7 @@ import (
 )
 
 func main() {
-	input, err := os.ReadFile("left.rom")
+	input, err := os.ReadFile("hello.rom")
 	if err != nil {
 		panic(err)
 	}
