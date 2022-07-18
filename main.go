@@ -13,7 +13,7 @@ func main() {
 	var uxn Machine
 
 	uxn.Load(input)
-	for {
+	for i := 0; i < 10; i++ {
 		uxn.Execute()
 	}
 }

@@ -29,7 +29,7 @@ func (s Stack) String() string {
 }
 
 func (s *Stack) Peek16() uint16 {
-	return uint16(s.Data[s.Pointer-1]) + uint16(s.Data[s.Pointer-2])
+	return uint16(s.Data[s.Pointer-2])<<8 + uint16(s.Data[s.Pointer-1])
 }
 
 func (s *Stack) Push16(v uint16) {
@@ -88,7 +88,7 @@ func (m *Machine) Execute() {
 			m.ProgramCounter += 2
 			m.WorkingStack.Pointer += 2
 			m.WorkingStack.Push16(v)
-			fmt.Println(m.WorkingStack)
+			m.ProgramCounter += 1
 		} else {
 			m.WorkingStack.Data[m.WorkingStack.Pointer] = m.Memory[m.ProgramCounter]
 			m.WorkingStack.Pointer++
@@ -307,7 +307,11 @@ func (m *Machine) Execute() {
 		//m.Memory[m.ProgramCounter + m.WorkingStack.Data[m.WorkingStack.Pointer-1]
 	case 0x14: // LDA
 		fmt.Println("Load aboslute")
+		fmt.Println(m.WorkingStack)
 		ind := m.WorkingStack.Peek16()
+		fmt.Println(ind >> 8)
+		fmt.Println(ind & 0xff)
+		fmt.Println(ind)
 		if !keepMode {
 			if shortMode {
 				m.WorkingStack.Pointer += 2
