@@ -433,16 +433,3 @@ func (m *Machine) Execute() {
 		panic(fmt.Sprintf("Unknown opcode: HEX: 0x%x, BIN: %8b", op&0x1f, op))
 	}
 }
-
-func Describe(op byte) {
-	fmt.Printf("Opcode: %x\n", op)
-	if op&0x01 != 0 {
-		fmt.Println("Keep")
-	}
-	if op&0x02 != 0 {
-		fmt.Println("Return")
-	}
-	if op&0x04 != 0 {
-		fmt.Println("Short")
-	}
-}
