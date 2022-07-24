@@ -12,7 +12,7 @@ var StackUnderflowError = errors.New("Stack underflow!")
 const ProgramStartPage = 0x100
 
 type Stack struct {
-	Data    [8]byte
+	Data    [254]byte
 	Error   byte
 	Pointer byte
 }
@@ -73,8 +73,6 @@ func (m *Machine) Execute() {
 	shortModeInt := op & 0x20 >> 5
 	returnMode := op&0x40 != 0
 	keepMode := op&0x80 != 0
-	// keepModeInt is `1` when keep mode is active, `0` otherwise
-	keepModeInt := op & 0x80 >> 7
 
 	_, _, _ = keepMode, returnMode, shortMode
 
@@ -82,7 +80,6 @@ func (m *Machine) Execute() {
 	switch op & 0x1f {
 	// Stack instructions
 	case 0x00: // LIT
-		fmt.Println("Pushing literal to the stack")
 		if shortMode {
 			v := m.PeekMem16()
 			m.ProgramCounter += 2
@@ -90,7 +87,7 @@ func (m *Machine) Execute() {
 			m.WorkingStack.Push16(v)
 			m.ProgramCounter += 1
 		} else {
-			m.WorkingStack.Data[m.WorkingStack.Pointer] = m.Memory[m.ProgramCounter]
+			m.WorkingStack.Data[m.WorkingStack.Pointer] = m.Memory[m.ProgramCounter+1]
 			m.WorkingStack.Pointer++
 			m.ProgramCounter++
 		}
@@ -103,10 +100,19 @@ func (m *Machine) Execute() {
 			}
 			m.WorkingStack.Push16(v)
 		} else {
-			m.WorkingStack.Data[m.WorkingStack.Pointer-(1-keepModeInt)] = m.WorkingStack.Data[m.WorkingStack.Pointer-1] + 1
+			if keepMode {
+				m.WorkingStack.Data[m.WorkingStack.Pointer] = m.WorkingStack.Data[m.WorkingStack.Pointer-1] + 1
+			} else {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1]++
+			}
 		}
 	case 0x02: // POP
 		if !keepMode {
+			// NOTE: This zeroing might not be necessary
+			m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+			if shortMode {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = 0x00
+			}
 			m.WorkingStack.Pointer -= shortModeInt + 1
 		}
 	case 0x03: // NIP
@@ -114,18 +120,24 @@ func (m *Machine) Execute() {
 			v := m.WorkingStack.Peek16()
 			if keepMode {
 				m.WorkingStack.Pointer += 2
+				m.WorkingStack.Push16(v)
 			} else {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-4] = m.WorkingStack.Data[m.WorkingStack.Pointer-2]
+				m.WorkingStack.Data[m.WorkingStack.Pointer-3] = m.WorkingStack.Data[m.WorkingStack.Pointer-1]
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
 				m.WorkingStack.Pointer -= 2
 			}
-			m.WorkingStack.Push16(v)
 		} else {
 			v := m.WorkingStack.Data[m.WorkingStack.Pointer-1]
 			if keepMode {
+				m.WorkingStack.Data[m.WorkingStack.Pointer] = v
 				m.WorkingStack.Pointer++
 			} else {
+				m.WorkingStack.Swap(m.WorkingStack.Pointer-1, m.WorkingStack.Pointer-2)
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
 				m.WorkingStack.Pointer--
 			}
-			m.WorkingStack.Data[m.WorkingStack.Pointer] = v
 		}
 	case 0x04: // SWP
 		if keepMode {
@@ -134,8 +146,9 @@ func (m *Machine) Execute() {
 				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = m.WorkingStack.Data[m.WorkingStack.Pointer-3]
 				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = m.WorkingStack.Data[m.WorkingStack.Pointer-4]
 			} else {
-				m.WorkingStack.Pointer++
-				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = m.WorkingStack.Data[m.WorkingStack.Pointer-2]
+				m.WorkingStack.Pointer += 2
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = m.WorkingStack.Data[m.WorkingStack.Pointer-3]
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = m.WorkingStack.Data[m.WorkingStack.Pointer-4]
 			}
 		}
 		if shortMode {
@@ -162,15 +175,15 @@ func (m *Machine) Execute() {
 			}
 		}
 		if shortMode {
-			// First swap
-			m.WorkingStack.Swap(m.WorkingStack.Pointer-1, m.WorkingStack.Pointer-3)
-			m.WorkingStack.Swap(m.WorkingStack.Pointer-2, m.WorkingStack.Pointer-4)
 			// Second swap
 			m.WorkingStack.Swap(m.WorkingStack.Pointer-3, m.WorkingStack.Pointer-5)
 			m.WorkingStack.Swap(m.WorkingStack.Pointer-4, m.WorkingStack.Pointer-6)
+			// First swap
+			m.WorkingStack.Swap(m.WorkingStack.Pointer-1, m.WorkingStack.Pointer-3)
+			m.WorkingStack.Swap(m.WorkingStack.Pointer-2, m.WorkingStack.Pointer-4)
 		} else {
-			m.WorkingStack.Swap(m.WorkingStack.Pointer-1, m.WorkingStack.Pointer-2)
 			m.WorkingStack.Swap(m.WorkingStack.Pointer-2, m.WorkingStack.Pointer-3)
+			m.WorkingStack.Swap(m.WorkingStack.Pointer-1, m.WorkingStack.Pointer-2)
 		}
 	case 0x06: // DUP
 		if shortMode {
@@ -192,21 +205,26 @@ func (m *Machine) Execute() {
 	case 0x07: // OVR
 		if keepMode {
 			if shortMode {
-				v := m.WorkingStack.Peek16()
-				m.WorkingStack.Pointer += 2
-				m.WorkingStack.Push16(v)
+				m.WorkingStack.Pointer += 4
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = m.WorkingStack.Data[m.WorkingStack.Pointer-5]
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = m.WorkingStack.Data[m.WorkingStack.Pointer-6]
+				m.WorkingStack.Data[m.WorkingStack.Pointer-3] = m.WorkingStack.Data[m.WorkingStack.Pointer-7]
+				m.WorkingStack.Data[m.WorkingStack.Pointer-4] = m.WorkingStack.Data[m.WorkingStack.Pointer-8]
 			} else {
-				m.WorkingStack.Pointer++
-				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = m.WorkingStack.Data[m.WorkingStack.Pointer-2]
+				m.WorkingStack.Pointer += 2
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = m.WorkingStack.Data[m.WorkingStack.Pointer-3]
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = m.WorkingStack.Data[m.WorkingStack.Pointer-4]
 			}
 		}
+
 		if shortMode {
-			m.WorkingStack.Pointer += 2
-			m.WorkingStack.Data[m.WorkingStack.Pointer-1] = m.WorkingStack.Data[m.WorkingStack.Pointer-5]
-			m.WorkingStack.Data[m.WorkingStack.Pointer-2] = m.WorkingStack.Data[m.WorkingStack.Pointer-6]
+			m.WorkingStack.Pointer -= 2
+			v := m.WorkingStack.Peek16()
+			m.WorkingStack.Pointer += 4
+			m.WorkingStack.Push16(v)
 		} else {
+			m.WorkingStack.Data[m.WorkingStack.Pointer] = m.WorkingStack.Data[m.WorkingStack.Pointer-2]
 			m.WorkingStack.Pointer++
-			m.WorkingStack.Data[m.WorkingStack.Pointer-1] = m.WorkingStack.Data[m.WorkingStack.Pointer-3]
 		}
 	// Logic instructions
 	case 0x08: // EQU
