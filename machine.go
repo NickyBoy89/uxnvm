@@ -42,6 +42,13 @@ func (s *Stack) Swap(n1, n2 byte) {
 	s.Data[n1], s.Data[n2] = s.Data[n2], s.Data[n1]
 }
 
+// ZeroFrom zeroes the section of stack from the start index to the end, inclusive
+func (s *Stack) ZeroFrom(start, end byte) {
+	for i := start; i < end+1; i++ {
+		s.Data[i] = 0x00
+	}
+}
+
 type Machine struct {
 	// Stacks
 	WorkingStack Stack
@@ -67,7 +74,7 @@ func (m *Machine) Load(rom []byte) {
 func (m *Machine) Execute() {
 	op := m.Memory[m.ProgramCounter]
 
-	fmt.Printf("Executing instr: %.2x\n", op)
+	//fmt.Printf("Executing instr: %.2x\n", op)
 
 	shortMode := op&0x20 != 0
 	shortModeInt := op & 0x20 >> 5
@@ -238,24 +245,47 @@ func (m *Machine) Execute() {
 		}
 		if keepMode {
 			m.WorkingStack.Data[m.WorkingStack.Pointer] = res
+			m.WorkingStack.Pointer++
 		} else {
-			m.WorkingStack.Data[m.WorkingStack.Pointer-2] = res
-			m.WorkingStack.Pointer--
+			if shortMode {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-3] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-4] = 0x00
+				m.WorkingStack.Pointer -= 3
+			} else {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = 0x00
+				m.WorkingStack.Pointer--
+			}
+			m.WorkingStack.Data[m.WorkingStack.Pointer-1] = res
 		}
 	case 0x09: // NEQ
 		var res byte
-		if shortMode &&
-			m.WorkingStack.Data[m.WorkingStack.Pointer-1] != m.WorkingStack.Data[m.WorkingStack.Pointer-3] &&
-			m.WorkingStack.Data[m.WorkingStack.Pointer-2] != m.WorkingStack.Data[m.WorkingStack.Pointer-4] {
-			res = 0x01
+		if shortMode {
+			if m.WorkingStack.Data[m.WorkingStack.Pointer-1] != m.WorkingStack.Data[m.WorkingStack.Pointer-3] ||
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] != m.WorkingStack.Data[m.WorkingStack.Pointer-4] {
+				res = 0x01
+			}
 		} else if m.WorkingStack.Data[m.WorkingStack.Pointer-1] != m.WorkingStack.Data[m.WorkingStack.Pointer-2] {
 			res = 0x01
 		}
 		if keepMode {
 			m.WorkingStack.Data[m.WorkingStack.Pointer] = res
+			m.WorkingStack.Pointer++
 		} else {
-			m.WorkingStack.Data[m.WorkingStack.Pointer-2] = res
-			m.WorkingStack.Pointer--
+			if shortMode {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-3] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-4] = 0x00
+				m.WorkingStack.Pointer -= 3
+			} else {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = 0x00
+				m.WorkingStack.Pointer--
+			}
+			m.WorkingStack.Data[m.WorkingStack.Pointer-1] = res
 		}
 	case 0x0a: // GTH
 		var res byte
@@ -269,8 +299,18 @@ func (m *Machine) Execute() {
 		if keepMode {
 			m.WorkingStack.Data[m.WorkingStack.Pointer] = res
 		} else {
-			m.WorkingStack.Data[m.WorkingStack.Pointer-2] = res
-			m.WorkingStack.Pointer--
+			if shortMode {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-3] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-4] = 0x00
+				m.WorkingStack.Pointer -= 3
+			} else {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = 0x00
+				m.WorkingStack.Pointer--
+			}
+			m.WorkingStack.Data[m.WorkingStack.Pointer-1] = res
 		}
 	case 0x0b: // LTH
 		var res byte
@@ -284,20 +324,60 @@ func (m *Machine) Execute() {
 		if keepMode {
 			m.WorkingStack.Data[m.WorkingStack.Pointer] = res
 		} else {
-			m.WorkingStack.Data[m.WorkingStack.Pointer-2] = res
-			m.WorkingStack.Pointer--
+			if shortMode {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-3] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-4] = 0x00
+				m.WorkingStack.Pointer -= 3
+			} else {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+				m.WorkingStack.Data[m.WorkingStack.Pointer-2] = 0x00
+				m.WorkingStack.Pointer--
+			}
+			m.WorkingStack.Data[m.WorkingStack.Pointer-1] = res
 		}
 	case 0x0c: //	JMP
 		if shortMode {
 			m.ProgramCounter = m.WorkingStack.Peek16()
+			if !keepMode {
+				m.WorkingStack.ZeroFrom(m.WorkingStack.Pointer-2, m.WorkingStack.Pointer-1)
+				m.WorkingStack.Pointer -= 2
+			}
 		} else {
-			m.ProgramCounter += uint16(m.WorkingStack.Data[m.WorkingStack.Pointer-1])
+			s := int8(m.WorkingStack.Data[m.WorkingStack.Pointer-1])
+			if s < 0 {
+				m.ProgramCounter -= uint16(-s)
+			} else {
+				m.ProgramCounter += uint16(s)
+			}
+			if !keepMode {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+				m.WorkingStack.Pointer--
+			}
 		}
 	case 0x0d: // JCN
-		if shortMode && m.WorkingStack.Data[m.WorkingStack.Pointer-3] != 00 {
-			m.ProgramCounter = m.WorkingStack.Peek16()
-		} else if m.WorkingStack.Data[m.WorkingStack.Pointer-2] != 00 {
-			m.ProgramCounter += uint16(m.WorkingStack.Data[m.WorkingStack.Pointer-1])
+		if shortMode {
+			if m.WorkingStack.Data[m.WorkingStack.Pointer-3] != 0x00 {
+				m.ProgramCounter = m.WorkingStack.Peek16()
+			}
+			if !keepMode {
+				m.WorkingStack.ZeroFrom(m.WorkingStack.Pointer-2, m.WorkingStack.Pointer-1)
+				m.WorkingStack.Pointer -= 2
+			}
+		} else {
+			if m.WorkingStack.Data[m.WorkingStack.Pointer-2] != 0x00 {
+				s := int8(m.WorkingStack.Data[m.WorkingStack.Pointer-1])
+				if s < 0 {
+					m.ProgramCounter -= uint16(-s)
+				} else {
+					m.ProgramCounter += uint16(s)
+				}
+			}
+			if !keepMode {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+				m.WorkingStack.Pointer--
+			}
 		}
 	case 0x0e: // JSR
 		m.ReturnStack.Push16(m.ProgramCounter)
