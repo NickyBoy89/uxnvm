@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 // Tests the logic functions of the virtual machine
 
@@ -259,8 +261,8 @@ func TestJMP(t *testing.T) {
 	}
 
 	if m.ProgramCounter != ProgramStartPage+0x02 {
-		t.Logf("Expect ProgramCounter: %v", m.ProgramCounter)
-		t.Logf("Actual ProgramCounter: %v", ProgramStartPage+0x02)
+		t.Logf("Actual ProgramCounter: 0x%.4x", m.ProgramCounter)
+		t.Logf("Expect ProgramCounter: 0x%.4x", ProgramStartPage+0x02)
 		t.Fatal("Program counters differed")
 	}
 }
@@ -417,10 +419,11 @@ func TestJSR(t *testing.T) {
 	m.WorkingStack = CreateStack([]byte{0x02})
 	m.Load([]byte{0x0e}) // JSR
 	m.Execute()
-	m.ProgramCounter += 2
+
+	//fmt.Printf("%.4x\n", m.ProgramCounter)
 
 	expected := CreateStack([]byte{})
-	expectedReturn := CreateStack([]byte{0x02})
+	expectedReturn := CreateStack([]byte{byte(ProgramStartPage >> 8), byte(ProgramStartPage&0xff) + 1})
 
 	if m.WorkingStack.Data != expected.Data {
 		t.Logf("Actual: %v", m.WorkingStack.Data)
@@ -434,9 +437,72 @@ func TestJSR(t *testing.T) {
 		t.Fatal("Return stacks differed")
 	}
 
-	if m.ProgramCounter != ProgramStartPage+0x04 {
+	if m.ProgramCounter != ProgramStartPage+0x02 {
 		t.Logf("Expect ProgramCounter: %v", m.ProgramCounter)
-		t.Logf("Actual ProgramCounter: %v", ProgramStartPage+0x04)
+		t.Logf("Actual ProgramCounter: %v", ProgramStartPage+0x02)
+		t.Fatal("Program counters differed")
+	}
+}
+
+func TestJSRk(t *testing.T) {
+	var m Machine
+	m.WorkingStack = CreateStack([]byte{0x02})
+	m.Load([]byte{0x8e}) // JSRk
+	m.Execute()
+
+	expected := CreateStack([]byte{0x02})
+
+	if m.WorkingStack.Data != expected.Data {
+		t.Logf("Actual: %v", m.WorkingStack.Data)
+		t.Logf("Expect: %v", expected.Data)
+		t.Fatal("Stacks differed")
+	}
+
+	if m.ProgramCounter != ProgramStartPage+0x02 {
+		t.Logf("Expect ProgramCounter: %v", m.ProgramCounter)
+		t.Logf("Actual ProgramCounter: %v", ProgramStartPage+0x02)
+		t.Fatal("Program counters differed")
+	}
+}
+
+func TestJSR2(t *testing.T) {
+	var m Machine
+	m.WorkingStack = CreateStack([]byte{0x00, 0x02})
+	m.Load([]byte{0x2e}) // JSR2
+	m.Execute()
+
+	expected := CreateStack([]byte{})
+
+	if m.WorkingStack.Data != expected.Data {
+		t.Logf("Actual: %v", m.WorkingStack.Data)
+		t.Logf("Expect: %v", expected.Data)
+		t.Fatal("Stacks differed")
+	}
+
+	if m.ProgramCounter != 0x02 {
+		t.Logf("Expect ProgramCounter: %v", m.ProgramCounter)
+		t.Logf("Actual ProgramCounter: %v", 0x02)
+		t.Fatal("Program counters differed")
+	}
+}
+
+func TestJSR2k(t *testing.T) {
+	var m Machine
+	m.WorkingStack = CreateStack([]byte{0x00, 0x02})
+	m.Load([]byte{0xae}) // JSR2k
+	m.Execute()
+
+	expected := CreateStack([]byte{0x00, 0x02})
+
+	if m.WorkingStack.Data != expected.Data {
+		t.Logf("Actual: %v", m.WorkingStack.Data)
+		t.Logf("Expect: %v", expected.Data)
+		t.Fatal("Stacks differed")
+	}
+
+	if m.ProgramCounter != 0x02 {
+		t.Logf("Expect ProgramCounter: %v", m.ProgramCounter)
+		t.Logf("Actual ProgramCounter: %v", 0x02)
 		t.Fatal("Program counters differed")
 	}
 }

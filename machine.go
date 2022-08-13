@@ -9,7 +9,7 @@ var StackOverflowError = errors.New("Stack overflow!")
 var StackUnderflowError = errors.New("Stack underflow!")
 
 // Page of memory where the program starts executing
-const ProgramStartPage = 0x100
+const ProgramStartPage uint16 = 0x100
 
 type Stack struct {
 	Data    [254]byte
@@ -61,18 +61,19 @@ type Machine struct {
 }
 
 func (m *Machine) PeekMem16() uint16 {
-	return uint16(m.Memory[m.ProgramCounter+1])<<8 + uint16(m.Memory[m.ProgramCounter+2])
+	return uint16(m.Memory[m.ProgramCounter])<<8 + uint16(m.Memory[m.ProgramCounter+1])
 }
 
 func (m *Machine) Load(rom []byte) {
 	for offset := 0; offset < len(rom); offset++ {
-		m.Memory[ProgramStartPage+offset] = rom[offset]
+		m.Memory[ProgramStartPage+uint16(offset)] = rom[offset]
 	}
 	m.ProgramCounter = ProgramStartPage
 }
 
 func (m *Machine) Execute() {
 	op := m.Memory[m.ProgramCounter]
+	m.ProgramCounter++
 
 	//fmt.Printf("Executing instr: %.2x\n", op)
 
@@ -94,7 +95,7 @@ func (m *Machine) Execute() {
 			m.WorkingStack.Push16(v)
 			m.ProgramCounter += 1
 		} else {
-			m.WorkingStack.Data[m.WorkingStack.Pointer] = m.Memory[m.ProgramCounter+1]
+			m.WorkingStack.Data[m.WorkingStack.Pointer] = m.Memory[m.ProgramCounter]
 			m.WorkingStack.Pointer++
 			m.ProgramCounter++
 		}
@@ -356,6 +357,7 @@ func (m *Machine) Execute() {
 				m.WorkingStack.Pointer--
 			}
 		}
+		//m.ProgramCounter--
 	case 0x0d: // JCN
 		if shortMode {
 			if m.WorkingStack.Data[m.WorkingStack.Pointer-3] != 0x00 {
@@ -380,12 +382,27 @@ func (m *Machine) Execute() {
 			}
 		}
 	case 0x0e: // JSR
-		m.ReturnStack.Push16(m.ProgramCounter)
+		fmt.Printf("%.4x\n", m.ProgramCounter)
 		m.ReturnStack.Pointer += 2
+		m.ReturnStack.Push16(m.ProgramCounter)
+
 		if shortMode {
 			m.ProgramCounter = m.WorkingStack.Peek16()
+			if !keepMode {
+				m.WorkingStack.ZeroFrom(m.WorkingStack.Pointer-2, m.WorkingStack.Pointer-1)
+				m.WorkingStack.Pointer -= 2
+			}
 		} else {
-			m.ProgramCounter += uint16(m.WorkingStack.Data[m.WorkingStack.Pointer-1])
+			s := int8(m.WorkingStack.Data[m.WorkingStack.Pointer-1])
+			if s < 0 {
+				m.ProgramCounter -= uint16(-s)
+			} else {
+				m.ProgramCounter += uint16(s)
+			}
+			if !keepMode {
+				m.WorkingStack.Data[m.WorkingStack.Pointer-1] = 0x00
+				m.WorkingStack.Pointer--
+			}
 		}
 	case 0x0f: // STH
 		m.ReturnStack.Data[m.ReturnStack.Pointer] = m.WorkingStack.Data[m.WorkingStack.Pointer-1]
@@ -404,12 +421,7 @@ func (m *Machine) Execute() {
 		panic("UNIMPLEMENTED")
 		//m.Memory[m.ProgramCounter + m.WorkingStack.Data[m.WorkingStack.Pointer-1]
 	case 0x14: // LDA
-		fmt.Println("Load aboslute")
-		fmt.Println(m.WorkingStack)
 		ind := m.WorkingStack.Peek16()
-		fmt.Println(ind >> 8)
-		fmt.Println(ind & 0xff)
-		fmt.Println(ind)
 		if !keepMode {
 			if shortMode {
 				m.WorkingStack.Pointer += 2
