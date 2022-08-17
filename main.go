@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"os"
 )
@@ -59,8 +58,9 @@ func main() {
 	}
 
 	uxn.Load(input)
+
 	for {
 		uxn.Execute()
-		fmt.Println(uxn.WorkingStack)
+		//fmt.Println(uxn.WorkingStack)
 	}
 }

@@ -1,6 +1,22 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+func HexPrint(arr []byte) string {
+	var result strings.Builder
+	result.WriteRune('[')
+	for index, item := range arr {
+		fmt.Fprintf(&result, "%.2x", item)
+		if index < len(arr)-1 {
+			result.WriteRune(' ')
+		}
+	}
+	result.WriteRune(']')
+	return result.String()
+}
 
 // Page of memory where the program starts executing
 const ProgramStartPage uint16 = 0x100
@@ -73,14 +89,6 @@ func (u *Uxn) Execute() {
 	} else {
 		srcStackPtr = &u.Src.Pointer
 	}
-
-	fmt.Printf("In: 0x%.2x, 0x%.2x, Keep: %t, Return: %t, Short: %t\n",
-		instr,
-		instr&0x1f,
-		instr&0x80 != 0,
-		instr&0x40 != 0,
-		instr&0x20 != 0,
-	)
 
 	// Get the top 5 bytes of the instruction
 	switch instr & 0x1f {
@@ -327,7 +335,6 @@ func (u *Uxn) Execute() {
 		*/
 	case 0x17: // DEO
 		deviceIndex := u.Src.Pop8(srcStackPtr)
-		fmt.Printf("Accessing device %d\n", deviceIndex>>4)
 		if shortMode {
 			b := u.Src.Pop16(srcStackPtr)
 			u.Devices[deviceIndex>>4].DeviceWrite16(deviceIndex, b)

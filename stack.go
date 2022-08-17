@@ -1,7 +1,5 @@
 package main
 
-import "fmt"
-
 type UxnError byte
 
 func (ue UxnError) Error() string {
@@ -32,17 +30,7 @@ type Stack struct {
 }
 
 func (s Stack) String() string {
-	result := "["
-	for index, dat := range s.Data {
-		if byte(index) >= s.Pointer {
-			break
-		}
-		result += fmt.Sprintf("%.2x", dat)
-		if index < len(s.Data)-1 {
-			result += " "
-		}
-	}
-	return result + "]"
+	return HexPrint(s.Data[:s.Pointer])
 }
 
 func (s *Stack) Push8(x byte) {
@@ -80,7 +68,7 @@ func (s *Stack) Pop16(srcStackPtr *byte) uint16 {
 		s.Error = ErrUnderflow
 		panic(s.Error)
 	}
-	o := uint16(s.Data[*srcStackPtr-1]) + uint16(s.Data[*srcStackPtr-2]<<8)
+	o := uint16(s.Data[*srcStackPtr-1]) + uint16(s.Data[*srcStackPtr-2])<<8
 	*srcStackPtr -= 2
 	return o
 }
