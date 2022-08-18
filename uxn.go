@@ -32,6 +32,8 @@ type Uxn struct {
 	Memory [65536]byte
 	// The current element in memory
 	ProgramCounter uint16
+	// Whether the program should continue executing
+	Halted bool
 }
 
 func (u *Uxn) Poke8(x byte) {
@@ -64,6 +66,8 @@ func (u *Uxn) Warp16(x uint16) {
 	u.ProgramCounter = x
 }
 
+// Execute takes a single byte from the where the Program Counter is pointing in
+// memory and executes it
 func (u *Uxn) Execute() {
 	instr := u.Memory[u.ProgramCounter]
 	u.ProgramCounter++
@@ -387,6 +391,13 @@ func (u *Uxn) Execute() {
 	}
 }
 
+// AddDevice links a device to a `uxn` virtual machine at the given port
+func (u *Uxn) AddDevice(port byte, device Device) {
+	u.Devices[port] = device
+	u.Devices[port].u = u
+}
+
+// Load takes in a `uxn` rom and loads it into memory to be executed
 func (u *Uxn) Load(rom []byte) {
 	for offset := 0; offset < len(rom); offset++ {
 		u.Memory[ProgramStartPage+uint16(offset)] = rom[offset]

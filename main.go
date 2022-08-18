@@ -6,14 +6,17 @@ import (
 )
 
 func main() {
-	input, err := os.ReadFile("hello.rom")
+	if len(os.Args) < 2 {
+		panic("Error: Need to specify an input rom, `command [rom-name.rom]`")
+	}
+	input, err := os.ReadFile(os.Args[1])
 	if err != nil {
 		panic(err)
 	}
 
 	var uxn Uxn
 
-	uxn.Devices[0x0] = Device{
+	uxn.AddDevice(0x0, Device{
 		DeviceInput: func(d *Device, port byte) byte {
 			switch port {
 			case 0x2:
@@ -30,17 +33,19 @@ func main() {
 				d.u.WorkingStack.Pointer = d.Data[port]
 			case 0x3:
 				d.u.ReturnStack.Pointer = d.Data[port]
-			case 0xe:
+			case 0xe: // Prints the contents of the stacks
 				panic("system_inspect")
 				//system_inspect(d.u)
+			case 0xf: // Halts the program
+				d.u.Halted = true
 			default:
 				//panic("system_deo_special")
 				//system_deo_special(d, port)
 			}
 		},
-	}
+	})
 
-	uxn.Devices[0x1] = Device{
+	uxn.AddDevice(0x1, Device{
 		DeviceInput: NilDei,
 		DeviceOut: func(d *Device, port byte) {
 			var out io.Writer
@@ -55,11 +60,11 @@ func main() {
 				out.Write([]byte{d.Data[port]})
 			}
 		},
-	}
+	})
 
 	uxn.Load(input)
 
-	for {
+	for !uxn.Halted {
 		uxn.Execute()
 		//fmt.Println(uxn.WorkingStack)
 	}
