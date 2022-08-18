@@ -8,11 +8,14 @@ func main() {
 	if len(os.Args) < 2 {
 		panic("Error: Need to specify an input rom, `command [rom-name.rom]`")
 	}
+
+	// Load the rom from disk
 	input, err := os.ReadFile(os.Args[1])
 	if err != nil {
 		panic(err)
 	}
 
+	// Create the Uxn virtual machine
 	var uxn Uxn
 
 	uxn.AddDevice(0x0, SystemDevice)  // System
@@ -32,8 +35,10 @@ func main() {
 	uxn.AddDevice(0xe, DummyDevice)   // Reserved
 	uxn.AddDevice(0xf, DummyDevice)   // Reserved
 
+	// Load the rom into the create Uxn virtual machine
 	uxn.Load(input)
 
+	// Execute the instructions one at a time
 	for !uxn.Halted {
 		uxn.Execute()
 	}
