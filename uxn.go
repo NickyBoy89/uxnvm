@@ -36,13 +36,13 @@ type Uxn struct {
 	Halted bool
 }
 
-func (u *Uxn) Poke8(x byte) {
-	u.Memory[u.ProgramCounter] = x
+func (u *Uxn) Poke8(at uint16, data byte) {
+	u.Memory[at] = data
 }
 
-func (u *Uxn) Poke16(x uint16) {
-	u.Memory[u.ProgramCounter] = byte(x >> 8)
-	u.Memory[u.ProgramCounter+1] = byte(x)
+func (u *Uxn) Poke16(at uint16, data uint16) {
+	u.Memory[at] = byte(data >> 8)
+	u.Memory[at+1] = byte(data)
 }
 
 func (u *Uxn) Peek16(at uint16) uint16 {
@@ -173,6 +173,7 @@ func (u *Uxn) Execute() {
 		}
 	case 0x07: // OVR
 		if shortMode {
+			//file_instance
 			a := u.Src.Pop16(srcStackPtr)
 			b := u.Src.Pop16(srcStackPtr)
 			u.Src.Push16(b)
@@ -327,18 +328,29 @@ func (u *Uxn) Execute() {
 			b := u.Peek8(a)
 			u.Src.Push8(b)
 		}
-		/*
-			case 0x15: // STA
-				u.Src.Pop16(srcStackPtra)
-				u.Src.Pop(b)
-				u.Src.Poke(a, b)
-			case 0x16: // DEI
-				u.Src.Pop8(srcStackPtra)
-				//DEVR(b, &u->dev[a >> 4], a)
-				u.Src.Push(src, b)
-		*/
+	case 0x15: // STA
+		a := u.Src.Pop16(srcStackPtr)
+		if shortMode {
+			b := u.Src.Pop16(srcStackPtr)
+			u.Poke16(a, b)
+		} else {
+			b := u.Src.Pop8(srcStackPtr)
+			u.Poke8(a, b)
+		}
+	case 0x16: // DEI
+		deviceIndex := u.Src.Pop8(srcStackPtr)
+		if shortMode {
+			b := u.Devices[deviceIndex>>4].DeviceRead16(deviceIndex)
+			u.Src.Push16(b)
+		} else {
+			b := u.Devices[deviceIndex>>4].DeviceRead8(deviceIndex)
+			u.Src.Push8(b)
+		}
 	case 0x17: // DEO
 		deviceIndex := u.Src.Pop8(srcStackPtr)
+		if u.Devices[deviceIndex>>4].u == nil {
+			panic(fmt.Sprintf("Device does not exist: %.2x", deviceIndex))
+		}
 		if shortMode {
 			b := u.Src.Pop16(srcStackPtr)
 			u.Devices[deviceIndex>>4].DeviceWrite16(deviceIndex, b)
@@ -346,46 +358,94 @@ func (u *Uxn) Execute() {
 			b := u.Src.Pop8(srcStackPtr)
 			u.Devices[deviceIndex>>4].DeviceWrite8(deviceIndex, b)
 		}
-		/*
-			// Arithmetic
-			case 0x18: // ADD
-				u.Src.Pop(a)
-				u.Src.Pop(b)
-				u.Src.Push(src, b+a)
-			case 0x19: // SUB
-				u.Src.Pop(a)
-				u.Src.Pop(b)
-				u.Src.Push(src, b-a)
-			case 0x1a: // MUL
-				u.Src.Pop(a)
-				u.Src.Pop(b)
-			//u.Src.Push(src, (Uint32)b * a)
-			case 0x1b: // DIV
-				u.Src.Pop(a)
-				u.Src.Pop(b)
-				if a == 0 {
-					errcode = 4
-					goto err
-				}
-				u.Src.Push(src, b/a)
-			case 0x1c: // AND
-				u.Src.Pop(a)
-				u.Src.Pop(b)
-				u.Src.Push(src, b&a)
-			case 0x1d: // ORA
-				u.Src.Pop(a)
-				u.Src.Pop(b)
-				u.Src.Push(src, b|a)
-			case 0x1e: // EOR
-				u.Src.Pop(a)
-				u.Src.Pop(b)
-				u.Src.Push(src, b^a)
-			case 0x1f: // SFT
-				u.Src.Pop8(srcStackPtra)
-				u.Src.Pop(b)
-				c = b >> (a & 0x0f) << ((a & 0xf0) >> 4)
-				u.Src.Push(src, c)
-		*/
+	// Arithmetic
+	case 0x18: // ADD
+		if shortMode {
+			a := u.Src.Pop16(srcStackPtr)
+			b := u.Src.Pop16(srcStackPtr)
+			u.Src.Push16(b + a)
+		} else {
+			a := u.Src.Pop8(srcStackPtr)
+			b := u.Src.Pop8(srcStackPtr)
+			u.Src.Push8(b + a)
+		}
+	case 0x19: // SUB
+		if shortMode {
+			a := u.Src.Pop16(srcStackPtr)
+			b := u.Src.Pop16(srcStackPtr)
+			u.Src.Push16(b - a)
+		} else {
+			a := u.Src.Pop8(srcStackPtr)
+			b := u.Src.Pop8(srcStackPtr)
+			u.Src.Push8(b - a)
+		}
+	case 0x1a: // MUL
+		if shortMode {
+			a := u.Src.Pop16(srcStackPtr)
+			b := u.Src.Pop16(srcStackPtr)
+			u.Src.Push16(b * a)
+		} else {
+			a := u.Src.Pop8(srcStackPtr)
+			b := u.Src.Pop8(srcStackPtr)
+			u.Src.Push8(b * a)
+		}
+	case 0x1b: // DIV
+		if shortMode {
+			a := u.Src.Pop16(srcStackPtr)
+			b := u.Src.Pop16(srcStackPtr)
+			if a == 0 {
+				panic(ErrDivByZero)
+			}
+			u.Src.Push16(b / a)
+		} else {
+			a := u.Src.Pop8(srcStackPtr)
+			b := u.Src.Pop8(srcStackPtr)
+			if a == 0 {
+				panic(ErrDivByZero)
+			}
+			u.Src.Push8(b / a)
+		}
+	case 0x1c: // AND
+		if shortMode {
+			a := u.Src.Pop16(srcStackPtr)
+			b := u.Src.Pop16(srcStackPtr)
+			u.Src.Push16(b & a)
+		} else {
+			a := u.Src.Pop8(srcStackPtr)
+			b := u.Src.Pop8(srcStackPtr)
+			u.Src.Push8(b & a)
+		}
+	case 0x1d: // ORA
+		if shortMode {
+			a := u.Src.Pop16(srcStackPtr)
+			b := u.Src.Pop16(srcStackPtr)
+			u.Src.Push16(b | a)
+		} else {
+			a := u.Src.Pop8(srcStackPtr)
+			b := u.Src.Pop8(srcStackPtr)
+			u.Src.Push8(b | a)
+		}
+	case 0x1e: // EOR
+		if shortMode {
+			a := u.Src.Pop16(srcStackPtr)
+			b := u.Src.Pop16(srcStackPtr)
+			u.Src.Push16(b ^ a)
+		} else {
+			a := u.Src.Pop8(srcStackPtr)
+			b := u.Src.Pop8(srcStackPtr)
+			u.Src.Push8(b ^ a)
+		}
+	case 0x1f: // SFT
+		a := u.Src.Pop8(srcStackPtr)
+		if shortMode {
+			b := u.Src.Pop16(srcStackPtr)
+			c := b >> (a & 0x0f) << ((a & 0xf0) >> 4)
+			u.Src.Push16(c)
+		} else {
+			b := u.Src.Pop8(srcStackPtr)
+			c := b >> (a & 0x0f) << ((a & 0xf0) >> 4)
+			u.Src.Push8(c)
+		}
 	default:
 		panic(fmt.Sprintf("Unhandled instruction %.2x", instr&0x1f))
 	}
