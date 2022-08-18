@@ -300,25 +300,58 @@ func (u *Uxn) Execute() {
 			u.Dst.Push8(a)
 		}
 		/* Memory */
-		/*
-			case 0x10: // LDZ
-				u.Src.Pop8(srcStackPtra)
-				u.Src.Peek(b, a)
-				u.Src.Push(src, b)
-			case 0x11: // STZ
-				u.Src.Pop8(srcStackPtra)
-				u.Src.Pop(b)
-				u.Src.Poke(a, b)
-			case 0x12: // LDR
-				u.Src.Pop8(srcStackPtra)
-				//u.Src.Peek(b, pc + (Sint8)a)
-				u.Src.Push(src, b)
-			case 0x13: // STR
-				u.Src.Pop8(srcStackPtra)
-				//u.Src.Pop(b)
-				//c = pc + (Sint8)a;
-				u.Src.Poke(c, b)
-		*/
+	case 0x10: // LDZ
+		a := uint16(u.Src.Pop8(srcStackPtr))
+		if shortMode {
+			b := u.Peek16(a)
+			u.Src.Push16(b)
+		} else {
+			b := u.Peek8(a)
+			u.Src.Push8(b)
+		}
+	case 0x11: // STZ
+		a := uint16(u.Src.Pop8(srcStackPtr))
+		if shortMode {
+			b := u.Src.Pop16(srcStackPtr)
+			u.Poke16(a, b)
+		} else {
+			b := u.Src.Pop8(srcStackPtr)
+			u.Poke8(a, b)
+		}
+	case 0x12: // LDR
+		a := int8(u.Src.Pop8(srcStackPtr))
+		if shortMode {
+			var b uint16
+			if a < 0 {
+				b = u.Peek16(uint16(*srcStackPtr - byte(-a)))
+			} else {
+				b = u.Peek16(uint16(*srcStackPtr + byte(a)))
+			}
+			u.Src.Push16(b)
+		} else {
+			var b byte
+			if a < 0 {
+				b = u.Peek8(uint16(*srcStackPtr - byte(-a)))
+			} else {
+				b = u.Peek8(uint16(*srcStackPtr + byte(a)))
+			}
+			u.Src.Push8(b)
+		}
+	case 0x13: // STR
+		a := int8(u.Src.Pop8(srcStackPtr))
+		c := *srcStackPtr
+		if a < 0 {
+			c -= byte(-a)
+		} else {
+			c += byte(a)
+		}
+		if shortMode {
+			b := u.Src.Pop16(srcStackPtr)
+			u.Poke16(uint16(c), b)
+		} else {
+			b := u.Src.Pop8(srcStackPtr)
+			u.Poke8(uint16(c), b)
+		}
 	case 0x14: // LDA
 		a := u.Src.Pop16(srcStackPtr)
 		if shortMode {
@@ -339,6 +372,9 @@ func (u *Uxn) Execute() {
 		}
 	case 0x16: // DEI
 		deviceIndex := u.Src.Pop8(srcStackPtr)
+		if u.Devices[deviceIndex>>4].u == nil {
+			panic(fmt.Sprintf("Device does not exist: %.2x", deviceIndex))
+		}
 		if shortMode {
 			b := u.Devices[deviceIndex>>4].DeviceRead16(deviceIndex)
 			u.Src.Push16(b)

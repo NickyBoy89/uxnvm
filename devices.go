@@ -51,7 +51,7 @@ var ConsoleDevice = Device{
 	},
 }
 
-var FileDevice = Device{
+var DummyDevice = Device{
 	DeviceInput: func(d *Device, port byte) byte {
 		return 0
 	},
