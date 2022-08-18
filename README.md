@@ -2,6 +2,10 @@
 
 An implementation of the [Uxn Virtual Machine](https://wiki.xxiivv.com/site/uxn.html), written in Go
 
+# Running a ROM
+
+`uxnvm <rom.rom>`
+
 # Building
 
 1. `go build`
