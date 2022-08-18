@@ -36,6 +36,5 @@ func main() {
 
 	for !uxn.Halted {
 		uxn.Execute()
-		//fmt.Println(uxn.WorkingStack)
 	}
 }

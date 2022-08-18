@@ -5,8 +5,20 @@ import (
 	"os"
 )
 
+// DummyDevice only exists for protyping purposes, and will always return `0`
+// when read from, as well as not do anything when written to
+var DummyDevice = Device{
+	ReadByte: func(d *Device, port byte) byte {
+		return 0
+	},
+	WriteByte: func(d *Device, port byte) {
+	},
+}
+
+// The SystemDevice controls the execution of the Uxn system
+// Reference: https://wiki.xxiivv.com/site/varvara.html#system
 var SystemDevice = Device{
-	DeviceInput: func(d *Device, port byte) byte {
+	ReadByte: func(d *Device, port byte) byte {
 		switch port {
 		case 0x2:
 			return d.u.WorkingStack.Pointer
@@ -16,7 +28,7 @@ var SystemDevice = Device{
 			return d.Data[port]
 		}
 	},
-	DeviceOut: func(d *Device, port byte) {
+	WriteByte: func(d *Device, port byte) {
 		switch port {
 		case 0x2:
 			d.u.WorkingStack.Pointer = d.Data[port]
@@ -34,9 +46,13 @@ var SystemDevice = Device{
 	},
 }
 
+// The ConsoleDevice controls input and output from the host
+// Reference: https://wiki.xxiivv.com/site/varvara.html#console
 var ConsoleDevice = Device{
-	DeviceInput: NilDei,
-	DeviceOut: func(d *Device, port byte) {
+	ReadByte: func(d *Device, port byte) byte {
+		panic("Tried to read from unimplemented device")
+	},
+	WriteByte: func(d *Device, port byte) {
 		var out io.Writer
 		switch port {
 		case 0x8:
@@ -48,13 +64,5 @@ var ConsoleDevice = Device{
 		if out != nil {
 			out.Write([]byte{d.Data[port]})
 		}
-	},
-}
-
-var DummyDevice = Device{
-	DeviceInput: func(d *Device, port byte) byte {
-		return 0
-	},
-	DeviceOut: func(d *Device, port byte) {
 	},
 }
